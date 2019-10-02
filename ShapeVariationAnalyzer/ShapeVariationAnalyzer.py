@@ -77,6 +77,7 @@ class ShapeVariationAnalyzerWidget(ScriptedLoadableModuleWidget):
         self.PCA_sliders_label=list()
         self.PCA_sliders_value_label=list()
         self.PCANode = None
+        self.dictTableNodes = dict()
 
         # Interface
         self.moduleName = 'ShapeVariationAnalyzer'
@@ -823,6 +824,42 @@ class ShapeVariationAnalyzerWidget(ScriptedLoadableModuleWidget):
 
         self.pushButton_PCA.setEnabled(True) 
 
+    def generateGroupTable(self, groupKey):
+        
+        groupDict = self.logic.pca_exploration.getDictPCA()[groupKey]
+        group_name = groupDict["group_name"]
+
+        if group_name == "All":  #don't create tables for all
+            return        
+
+        self.logic.pca_exploration.setCurrentPCAModel(groupKey)
+
+        projectionTableNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTableNode","Group PCA projection table - " + groupDict["group_name"])
+        table = projectionTableNode.GetTable()
+        table.Initialize()
+
+        pc1,pc2=self.logic.pca_exploration.getPCAProjections()
+        labels = self.logic.pca_exploration.getPCAProjectionLabels()
+
+        pc1.SetName("pc1")
+        pc2.SetName("pc2")
+        labels.SetName("files")
+
+        table.AddColumn(pc1)
+        table.AddColumn(pc2)
+        table.AddColumn(labels)
+        self.dictTableNodes[groupKey] = projectionTableNode
+
+    def clearGroupTables(self):
+
+        for key in self.dictTableNodes:
+            node = self.dictTableNodes[key]
+            if node is not None:
+                slicer.mrmlScene.RemoveNode(node)
+
+        self.dictTableNodes = {}
+
+
     def onExportForExploration(self):
 
 
@@ -830,16 +867,20 @@ class ShapeVariationAnalyzerWidget(ScriptedLoadableModuleWidget):
 
         self.comboBox_groupPCA.setEnabled(True)
         self.comboBox_groupPCA.clear()
+        self.clearGroupTables()
 
         dictPCA=self.logic.pca_exploration.getDictPCA()
         for key, value in dictPCA.items():
             group_name = value["group_name"]
+            self.generateGroupTable(key)
             if key != "All":
                 self.comboBox_groupPCA.addItem(str(key)+': '+group_name)
             else: 
                 self.comboBox_groupPCA.addItem(key)
 
         self.setColorModeSpinBox()
+
+
 
         self.showmean=False
         self.generate3DVisualisationNodes()
@@ -900,10 +941,12 @@ class ShapeVariationAnalyzerWidget(ScriptedLoadableModuleWidget):
 
         self.comboBox_groupPCA.setEnabled(True)
         self.comboBox_groupPCA.clear()
+        self.clearGroupTables()
         dictPCA=self.logic.pca_exploration.getDictPCA()
         for key, value in dictPCA.items():
 
             group_name = value["group_name"]
+            self.generateGroupTable(key)
             if key != "All":
                 self.comboBox_groupPCA.addItem(str(key)+': '+group_name)
             else: 
