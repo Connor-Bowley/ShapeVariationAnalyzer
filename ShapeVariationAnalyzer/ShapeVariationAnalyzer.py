@@ -78,6 +78,7 @@ class ShapeVariationAnalyzerWidget(ScriptedLoadableModuleWidget):
         self.PCA_sliders_value_label=list()
         self.PCANode = None
         self.dictTableNodes = dict()
+        self.dictSeriesNodes = dict()
 
         # Interface
         self.moduleName = 'ShapeVariationAnalyzer'
@@ -356,6 +357,8 @@ class ShapeVariationAnalyzerWidget(ScriptedLoadableModuleWidget):
         self.patientList = list()
         self.dictResults = dict()
         self.dictFeatData = dict()
+        self.dictTableNodes = dict()
+        self.dictSeriesNodes = dict()
 
         
         # Tab: New Classification Groups
@@ -824,6 +827,25 @@ class ShapeVariationAnalyzerWidget(ScriptedLoadableModuleWidget):
 
         self.pushButton_PCA.setEnabled(True) 
 
+    def generateGroupSeries(self, groupKey):
+        groupDict = self.logic.pca_exploration.getDictPCA()[groupKey]
+        group_name = groupDict["group_name"]
+
+        if group_name == "All":  #don't create tables for all
+            return
+
+        projectionTableNode =  self.dictTableNodes[groupKey] 
+
+        projectionPlotSeries = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLPlotSeriesNode", "Group PCA projection - " + groupDict["group_name"])
+        projectionPlotSeries.SetAndObserveTableNodeID(projectionTableNode.GetID())
+        projectionPlotSeries.SetXColumnName("pc1")
+        projectionPlotSeries.SetYColumnName("pc2")
+        projectionPlotSeries.SetLabelColumnName("files")
+        projectionPlotSeries.SetPlotType(slicer.vtkMRMLPlotSeriesNode.PlotTypeScatter)
+        projectionPlotSeries.SetLineStyle(slicer.vtkMRMLPlotSeriesNode.LineStyleNone)
+        projectionPlotSeries.SetMarkerStyle(slicer.vtkMRMLPlotSeriesNode.MarkerStyleSquare)        
+        projectionPlotSeries.SetUniqueColor()
+
     def generateGroupTable(self, groupKey):
         
         groupDict = self.logic.pca_exploration.getDictPCA()[groupKey]
@@ -833,6 +855,7 @@ class ShapeVariationAnalyzerWidget(ScriptedLoadableModuleWidget):
             return        
 
         self.logic.pca_exploration.setCurrentPCAModel(groupKey)
+        print(groupKey)
 
         projectionTableNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTableNode","Group PCA projection table - " + groupDict["group_name"])
         table = projectionTableNode.GetTable()
