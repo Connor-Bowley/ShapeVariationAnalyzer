@@ -24,6 +24,7 @@ from scipy import stats
 import time
 
 import shapepcalib as shapca
+from cpns.cpns import CPNS
 
 
 class ShapeVariationAnalyzer(ScriptedLoadableModule):
@@ -291,7 +292,6 @@ class ShapeVariationAnalyzerWidget(ScriptedLoadableModuleWidget):
         self.pushButton_removeGroup.connect('clicked()', self.onRemoveGroupForCreationCSVFile)
         self.pushButton_modifyGroup.connect('clicked()', self.onModifyGroupForCreationCSVFile)
         self.pushButton_exportCSVfile.connect('clicked()', self.onExportForCreationCSVFile)
-        
 
         #          Tab: Preview / Update Classification Groups
         self.collapsibleButton_previewClassificationGroups.connect('clicked()',
@@ -965,9 +965,9 @@ class ShapeVariationAnalyzerWidget(ScriptedLoadableModuleWidget):
             if key != "All":
                 self.comboBox_groupPCA.addItem(str(key)+': '+group_name)
             else: 
-                self.comboBox_groupPCA.addItem(key)  
+                self.comboBox_groupPCA.addItem(key)
 
-        
+
         self.setColorModeSpinBox()    
         self.showmean=False
 
@@ -1994,7 +1994,7 @@ class ShapeVariationAnalyzerLogic(ScriptedLoadableModuleLogic):
         # Fill a dictionary which contains the vtk files for the classification groups sorted by group
         valueList = list()
         for file in os.listdir(directory):
-            if file.endswith(".vtk"):
+            if file.endswith(".vtk") or file.endswith(".xml"):
                 filepath = directory + '/' + file
                 valueList.append(filepath)
         dictCSVFile[group] = valueList
@@ -2061,10 +2061,6 @@ class ShapeVariationAnalyzerLogic(ScriptedLoadableModuleLogic):
 
         return True
 
-
-
-
-
     def addColorMap(self, table, dictVTKFiles):
         """ Function to add a color map "DisplayClassificationGroup" 
         to all the vtk files which allow the user to visualize each 
@@ -2072,13 +2068,46 @@ class ShapeVariationAnalyzerLogic(ScriptedLoadableModuleLogic):
         """
         for key, value in dictVTKFiles.items():
             for vtkFile in value:
-                # Read VTK File
-                reader = vtk.vtkDataSetReader()
-                reader.SetFileName(vtkFile)
-                reader.ReadAllVectorsOn()
-                reader.ReadAllScalarsOn()
-                reader.Update()
-                polyData = reader.GetOutput()
+                polyData = vtk.vtkPolyData()
+                if os.path.basename(vtkFile).endswith(".vtk"):
+                    # Read VTK File
+                    reader = vtk.vtkDataSetReader()
+                    reader.SetFileName(vtkFile)
+                    reader.ReadAllVectorsOn()
+                    reader.ReadAllScalarsOn()
+                    reader.Update()
+                    polyData = reader.GetOutput()
+                elif os.path.basename(vtkFile).endswith(".xml"):
+                    # Read S-Rep file
+                    parser = vtk.vtkXMLDataParser()
+                    parser.SetFileName(vtkFile)
+                    parser.Parse()
+                    root = parser.GetRootElement()
+
+                    reader0 = vtk.vtkXMLPolyDataReader()
+                    reader0.SetFileName(root.FindNestedElementWithName("upSpoke").GetCharacterData())
+                    reader0.Update()
+
+                    reader1 = vtk.vtkXMLPolyDataReader()
+                    reader1.SetFileName(root.FindNestedElementWithName("downSpoke").GetCharacterData())
+                    reader1.Update()
+
+                    reader2 = vtk.vtkXMLPolyDataReader()
+                    reader2.SetFileName(root.FindNestedElementWithName("crestSpoke").GetCharacterData())
+                    reader2.Update()
+
+                    append = vtk.vtkAppendPolyData()
+                    append.AddInputData(CPNS.extractSpokes(reader0.GetOutput(), 0))
+                    append.AddInputData(CPNS.extractSpokes(reader1.GetOutput(), 4))
+                    append.AddInputData(CPNS.extractSpokes(reader2.GetOutput(), 2))
+                    append.AddInputData(CPNS.extractEdges(reader0.GetOutput(), 1))
+                    append.AddInputData(CPNS.extractEdges(reader2.GetOutput(), 3))
+                    append.Update()
+                    polyData = append.GetOutput()
+
+                    vtkFile = os.path.splitext(vtkFile)[0]+'.vtk'
+                else:
+                    print("Wrong file type!")
 
                 # Copy of the polydata
                 polyDataCopy = vtk.vtkPolyData()
@@ -2104,6 +2133,8 @@ class ShapeVariationAnalyzerLogic(ScriptedLoadableModuleLogic):
                 # to visualize them in Shape Population Viewer
                 writer = vtk.vtkPolyDataWriter()
                 filepath = slicer.app.temporaryPath + '/' + os.path.basename(vtkFile)
+                if os.path.exists(filepath):
+                    print("Error: two input files under different groups have the same name!")
                 writer.SetFileName(filepath)
                 if vtk.VTK_MAJOR_VERSION <= 5:
                     writer.SetInput(polyDataCopy)
@@ -2138,6 +2169,8 @@ class ShapeVariationAnalyzerLogic(ScriptedLoadableModuleLogic):
                 # Recovery of the vtk filename
                 qlabel = table.cellWidget(row, 0)
                 vtkFile = qlabel.text
+                if vtkFile.endswith('.xml'):
+                    vtkFile = os.path.splitext(vtkFile)[0] + '.vtk'
                 pathVTKFile = slicer.app.temporaryPath + '/' + vtkFile
                 cw.writerow([pathVTKFile])
         file.close()
@@ -2249,6 +2282,8 @@ class ShapeVariationAnalyzerLogic(ScriptedLoadableModuleLogic):
         """
         # remove of all the vtk file
         for vtkFile in value:
+            if vtkFile.endswith('.xml'):
+                vtkFile = os.path.splitext(vtkFile)[0] + '.vtk'
             filepath = slicer.app.temporaryPath + '/' + os.path.basename(vtkFile)
             if os.path.exists(filepath):
                 os.remove(filepath)
@@ -2288,7 +2323,7 @@ class ShapeVariationAnalyzerLogic(ScriptedLoadableModuleLogic):
         for key, value in dict.items():
             if type(value) is not type(list()) or len(value) == 1:
                 msg='The group ' + str(key) + ' must contain more than one mesh.'
-                raise CSVFileError(msg)
+                raise shapca.CSVFileError(msg)
                 return False
         return True
 
