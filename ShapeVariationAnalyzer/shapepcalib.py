@@ -808,7 +808,7 @@ class pcaExplorer(object):
                     group_name = os.path.basename(os.path.dirname(vtkfile))
 
         if (self.isSRep is True):
-            if (len(y_design) is 0):
+            if (len(y_design) == 0):
                 print("Reading s-rep dataset")
                 y_design = None
                 polydata = None
@@ -817,7 +817,7 @@ class pcaExplorer(object):
                 y_design = np.array(y_design)
                 y_design = y_design.reshape(y_design.shape[0], -1)
         else:
-            if len(y_design) is not 0:
+            if len(y_design) != 0:
                 print("Reading poly dataset")
                 y_design = np.array(y_design)
                 y_design = y_design.reshape(y_design.shape[0], -1)

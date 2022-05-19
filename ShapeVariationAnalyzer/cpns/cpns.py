@@ -54,7 +54,7 @@ class CPNS(object):
         self.ZComp = None
 
     def Update(self):
-        if len(self.fileList) is 0:
+        if len(self.fileList) == 0:
             print("No input file list! Please use setInputFiles(fileList)")
             self.clear()
             return False
